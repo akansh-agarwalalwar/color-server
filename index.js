@@ -755,7 +755,7 @@ app.post("/api/bank-details", async (req, res) => {
   const { userId, accountNumber, ifscCode } = req.body;
   try {
     await con.execute(
-      "INSERT INTO bankdetails (userId, accountNumber, ifscCode) VALUES (?, ?, ?)",
+      "INSERT INTO bankDetails (userId, accountNumber, ifscCode) VALUES (?, ?, ?)",
       [userId, accountNumber, ifscCode]
     );
     res.status(200).send({ message: "Bank Details Submitted Successfully" });
@@ -770,7 +770,7 @@ app.get("/api/bank-details/:userId", async (req, res) => {
 
   try {
     const [rows] = await con.execute(
-      "SELECT accountNumber, ifscCode FROM bankdetails WHERE userId = ?",
+      "SELECT accountNumber, ifscCode FROM bankDetails WHERE userId = ?",
       [userId]
     );
     if (rows.length > 0) {
