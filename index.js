@@ -90,7 +90,7 @@ async function ensureTableExists() {
     console.log("Table 'recharge' ensured in the database");
 
     const createAllPeriodsTableThirtySecond = `
-    CREATE TABLE IF NOT EXISTS allperiodsThirtySecond (
+    CREATE TABLE IF NOT EXISTS allperiodsthirtysecond (
     id INT AUTO_INCREMENT PRIMARY KEY,
     periodNumber VARCHAR(255) NOT NULL,
     periodDate DATE NOT NULL,
@@ -102,7 +102,7 @@ async function ensureTableExists() {
     console.log("Table 'All Periods Thirty Second' ensured in the database");
 
     const createAllUserPeriodsTableThirtySecond = `
-    CREATE TABLE IF NOT EXISTS alluserperiodsThirtySecond (
+    CREATE TABLE IF NOT EXISTS alluserperiodsthirtysecond (
     id INT AUTO_INCREMENT PRIMARY KEY,
     IDOfUser BIGINT,
     periodNumber VARCHAR(255) NOT NULL,
@@ -112,6 +112,8 @@ async function ensureTableExists() {
     betAmount DECIMAL(10,2) NOT NULL,
     afterBetAmount DECIMAL(10,2),
     status ENUM('win', 'lose'),
+    win_ammount DECIMAL(10,2),
+    win_color VARCHAR(50),
     possiblePayout DECIMAL(10,2)
 );
 
@@ -132,7 +134,7 @@ async function ensureTableExists() {
     await con.execute(countPeriodAndTime);
     console.log("countPeriodAndTime created");
     const thirtySecondAmountCalculator = `
-    CREATE TABLE IF NOT EXISTS thirtySecondAmountCalculator (
+    CREATE TABLE IF NOT EXISTS thirtysecondamountcalculator (
     id INT AUTO_INCREMENT PRIMARY KEY,
     periodNumber VARCHAR(255) NOT NULL, 
     color VARCHAR(50),
@@ -143,7 +145,7 @@ async function ensureTableExists() {
   );
 `;
     await con.execute(thirtySecondAmountCalculator);
-    console.log("Table thirtySecondAmountCalculator created");
+    console.log("Table thirtysecondamountcalculator created");
 
     const createWithdrawHistory = `
     CREATE TABLE IF NOT EXISTS withdrawhistory (
