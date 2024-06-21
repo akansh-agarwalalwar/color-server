@@ -59,13 +59,13 @@ async function ensureTableExists() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         userId BIGINT,
         amount DECIMAL(10,2),
-        status ENUM('pending', 'approved', 'denied') DEFAULT 'pending'
+        status ENUM('pending', 'approved', 'denied') DEFAULT 'pending',
+        transaction_id VARCHAR(10)
       );
     `;
     await con.execute(createUploadImagesTableQuery);
     console.log("Table 'uploadimages' ensured in the database.");
 
-    // Create the admin table
     const createAdminTableQuery = `
       CREATE TABLE IF NOT EXISTS admin (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -405,16 +405,25 @@ app.post("/verify-email-otp", (req, res) => {
 });
 
 app.post("/image-upload", async (req, res) => {
-  const { userId, amount } = req.body;
+  const { userId, amount,input } = req.body;
   try {
     await con.execute(
-      "INSERT INTO uploadimages (userId, amount) VALUES (?, ?)",
-      [userId, amount]
+      "INSERT INTO uploadimages (userId, amount, transaction_id) VALUES (?, ?,?)",
+      [userId, amount,input]
     );
     res.status(201).send({ message: "Request Created" });
   } catch (error) {
     console.error("Error uploading image:", error);
     res.status(500).send({ message: "Internal Server Error", error: error });
+  }
+});
+const transactions = new Set();
+app.get('/check-transaction/:transactionId', (req, res) => {
+  const { inputValue } = req.params;
+  if (transactions.has(inputValue)) {
+    return res.json({ exists: true });
+  } else {
+    return res.json({ exists: false });
   }
 });
 
@@ -459,7 +468,7 @@ app.post("/api/payment", async (req, res) => {
 app.get("/api/payments/pending", async (req, res) => {
   try {
     const [rows] = await con.execute(
-      "SELECT id, userId, amount FROM uploadimages WHERE status = 'pending'"
+      "SELECT id, userId, amount,transaction_id FROM uploadimages WHERE status = 'pending'"
     );
     res.json(rows);
   } catch (error) {
