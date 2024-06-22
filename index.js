@@ -6,7 +6,7 @@ const nodemailer = require("nodemailer");
 const otpGenerator = require("otp-generator");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
-
+const bcrypt = require('bcrypt');
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -44,11 +44,10 @@ async function ensureTableExists() {
         mobileNumber VARCHAR(15) NOT NULL UNIQUE,
         useremail VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
-        confirmPassword VARCHAR(255) NOT NULL,
         referenceCode VARCHAR(10),
-        IDOfUser VARCHAR(10),
+        IDOfUser VARCHAR(10) UNIQUE,
         userReferenceCode VARCHAR(10),
-        balance DECIMAL(10,2)
+        balance DECIMAL(10,2) 
       );
     `;
     await con.execute(createRegisterTableQuery);
@@ -92,7 +91,7 @@ async function ensureTableExists() {
     const createAllPeriodsTableThirtySecond = `
     CREATE TABLE IF NOT EXISTS allperiodsthirtysecond (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    periodNumber VARCHAR(255) NOT NULL,
+    periodNumber VARCHAR(255) NOT NULL, 
     periodDate DATE NOT NULL,
     colorWinner VARCHAR(255) NOT NULL
     );
@@ -211,29 +210,15 @@ async function generateRandomUserId() {
 
 const otpStore = {}; // In-memory store for OTPs
 app.post("/register", async (req, res) => {
-  const {
-    username,
-    mobileNumber,
-    useremail,
-    password,
-    confirmPassword,
-    referenceCode,
-  } = req.body;
+  const { username, mobileNumber, useremail, password, referenceCode } =
+    req.body;
 
-  if (
-    !username ||
-    !mobileNumber ||
-    !useremail ||
-    !password ||
-    !confirmPassword
-  ) {
-    return res.status(400).send({ message: "All fields are required" });
+  if (!username || !mobileNumber || !useremail || !password) {
+    return res.status(400)
   }
 
   try {
-    // Generate a random user ID
     const userId = await generateRandomUserId();
-    // Check if the user already exists with the provided email or mobile number
     const [existingUsersWithEmail] = await con.execute(
       "SELECT * FROM register WHERE useremail = ?",
       [useremail]
@@ -273,14 +258,15 @@ app.post("/register", async (req, res) => {
       specialChars: false,
       lowerCaseAlphabets: true,
     });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await con.execute(
-      "INSERT INTO register (username, mobileNumber, useremail, password, confirmPassword, referenceCode, IDOfUser, userReferenceCode, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO register (username, mobileNumber, useremail, password, referenceCode, IDOfUser, userReferenceCode, balance) VALUES (?, ?, ?, ?, ?,  ?, ?, ?)",
       [
         username,
         mobileNumber,
         useremail,
-        password,
-        confirmPassword,
+        hashedPassword,
         referenceCode,
         userId,
         userReferenceCode,
@@ -308,54 +294,60 @@ app.post("/login", async (req, res) => {
   try {
     // Check if the user is an admin
     const [adminRows] = await con.execute(
-      "SELECT * FROM admin WHERE adminemail = ? AND password = ?",
-      [useremail, password]
+      "SELECT * FROM admin WHERE adminemail = ?",
+      [useremail]
     );
 
     if (adminRows.length === 1) {
       const admin = adminRows[0];
-      res.cookie(
-        "admin",
-        {
-          adminId: admin.id,
-          adminemail: admin.adminemail,
-        },
-        { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
-      );
-      return res.status(200).send({
-        message: "Admin login successful",
-        adminId: admin.id,
-        adminemail: admin.adminemail,
-      });
+      const isPasswordCorrect = await bcrypt.compare(password, admin.password);
+      if (isPasswordCorrect) {
+        res.cookie(
+          "admin",
+          {
+            adminId: admin.id,
+            adminemail: admin.adminemail,
+          },
+          { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
+        );
+        return res.status(200);
+      } else {
+        return res.status(401)
+      }
     }
 
     // Check if the user is a regular user
     const [userRows] = await con.execute(
-      "SELECT IDOfUser, username, useremail as userEmail, mobileNumber, balance FROM register WHERE useremail = ? AND password = ?",
-      [useremail, password]
+      "SELECT IDOfUser, username, useremail as userEmail, mobileNumber, balance, password FROM register WHERE useremail = ?",
+      [useremail]
     );
 
     if (userRows.length === 1) {
       const user = userRows[0];
-      res.cookie(
-        "user",
-        {
+      const isPasswordCorrect = await bcrypt.compare(password, user.password);
+      if (isPasswordCorrect) {
+        res.cookie(
+          "user",
+          {
+            userId: user.IDOfUser,
+            username: user.username,
+            useremail: user.userEmail,
+            mobileNumber: user.mobileNumber,
+            balance: user.balance,
+          },
+          { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
+        );
+        return res.status(200).send({
+          message: "Login successful",
           userId: user.IDOfUser,
           username: user.username,
           useremail: user.userEmail,
           mobileNumber: user.mobileNumber,
           balance: user.balance,
-        },
-        { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
-      );
-      return res.status(200).send({
-        message: "Login successful",
-        userId: user.IDOfUser,
-        username: user.username,
-        useremail: user.userEmail,
-        mobileNumber: user.mobileNumber,
-        balance: user.balance,
-      });
+        });
+      } else {
+        return res.status(401).send({ message: "Invalid email or password" });
+      }
     } else {
       return res.status(401).send({ message: "Invalid email or password" });
     }
@@ -364,6 +356,7 @@ app.post("/login", async (req, res) => {
     res.status(500).send({ message: "Internal Server Error", error: error });
   }
 });
+
 app.post("/logout", (req, res) => {
   res.clearCookie("user");
   res.status(200).send({ message: "Logout successful" });
@@ -405,11 +398,11 @@ app.post("/verify-email-otp", (req, res) => {
 });
 
 app.post("/image-upload", async (req, res) => {
-  const { userId, amount,input } = req.body;
+  const { userId, amount, input } = req.body;
   try {
     await con.execute(
       "INSERT INTO uploadimages (userId, amount, transaction_id) VALUES (?, ?,?)",
-      [userId, amount,input]
+      [userId, amount, input]
     );
     res.status(201).send({ message: "Request Created" });
   } catch (error) {
@@ -418,7 +411,7 @@ app.post("/image-upload", async (req, res) => {
   }
 });
 const transactions = new Set();
-app.get('/check-transaction/:transactionId', (req, res) => {
+app.get("/check-transaction/:transactionId", (req, res) => {
   const { inputValue } = req.params;
   if (transactions.has(inputValue)) {
     return res.json({ exists: true });
@@ -593,42 +586,54 @@ app.get("/api/payemnt/history123", async (req, res) => {
 app.post("/api/withdraw", async (req, res) => {
   const { userId, amount } = req.body;
 
+  // Check if userId, amount are provided and if the amount is valid
   if (!userId || !amount || amount <= 0) {
-    return res.status(400).send({ message: "Invalid request" });
+    return res.status(400).send({ message: "Invalid user ID or amount" });
+  }
+
+  // Check if the amount is greater than 300
+  if (amount < 300) {
+    return res.status(400).send({ message: "Amount must be greater than 300" });
   }
 
   try {
+    // Fetch the user balance from the database
     const [userRows] = await con.execute(
       "SELECT balance FROM register WHERE IDOfUser = ?",
       [userId]
     );
 
+    // Check if the user exists
     if (userRows.length === 0) {
       return res.status(404).send({ message: "User not found" });
     }
+
     const userBalance = userRows[0].balance;
+    console.log(userBalance);
+    console.log(amount);
+
+    // Check if the user has sufficient balance
     if (userBalance < amount) {
       return res.status(400).send({ message: "Insufficient balance" });
     }
 
-    // Deduct amount from user balance
+    // Deduct the amount from the user balance
     await con.execute(
       "UPDATE register SET balance = balance - ? WHERE IDOfUser = ?",
       [amount, userId]
     );
 
-    // Create a withdrawal request and insert it into withdraw history
+    // Insert the withdrawal record into the withdraw history
     await con.execute(
       "INSERT INTO withdrawhistory (userId, amount, withdrawDate) VALUES (?, ?, CURDATE())",
       [userId, amount]
     );
 
-    res
-      .status(200)
-      .send({ message: "Withdrawal request submitted successfully" });
+    // Respond with a success message
+    res.status(200).send({ message: "Withdrawal successful" });
   } catch (error) {
-    console.error("Error processing withdrawal:", error);
-    res.status(500).send({ message: "Internal Server Error", error: error });
+    console.error(error);
+    res.status(500).send({ message: "Internal server error" });
   }
 });
 
@@ -1122,7 +1127,9 @@ app.get("/winner-api", async (req, res) => {
 
 app.get("/admin/thirty-second-manual-calculator", async (req, res) => {
   try {
-    const [entry] = await con.execute("SELECT * FROM countperiodandtime ORDER BY id DESC LIMIT 1");
+    const [entry] = await con.execute(
+      "SELECT * FROM countperiodandtime ORDER BY id DESC LIMIT 1"
+    );
     res.status(200).json(entry[0]);
   } catch (error) {
     console.error("Error fetching the latest entry:", error);
@@ -1158,6 +1165,11 @@ app.get("/api/alluserperiodsthirtysecond", async (req, res) => {
 //   }
 // });
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "Welcome to the API",
+  });
+});
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
