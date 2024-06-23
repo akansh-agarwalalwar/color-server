@@ -12,7 +12,7 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 const dotenv = require("dotenv");
 dotenv.config();
-// app.use(morgan('dev'))
+ app.use(morgan('dev'))
 
 app.use(express.json());
 const corsOptions = {
@@ -99,6 +99,17 @@ async function ensureTableExists() {
 
     await con.execute(createAllPeriodsTableThirtySecond);
     console.log("Table 'All Periods Thirty Second' ensured in the database");
+    const createAllPeriodsTwoMin = `
+    CREATE TABLE IF NOT EXISTS allperiodstwomin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    periodNumber VARCHAR(255) NOT NULL, 
+    periodDate DATE NOT NULL,
+    colorWinner VARCHAR(255) NOT NULL
+    );
+    `;
+
+    await con.execute(createAllPeriodsTwoMin);
+    console.log("Table 'All Periods Two Min' ensured in the database");
 
     const createAllUserPeriodsTableThirtySecond = `
     CREATE TABLE IF NOT EXISTS alluserperiodsthirtysecond (
@@ -119,9 +130,28 @@ async function ensureTableExists() {
     `;
     await con.execute(createAllUserPeriodsTableThirtySecond);
     console.log("Table 'Thirty Second User Table' ensured in the database");
+    const createAllUserPeriodsTableTwoMin = `
+    CREATE TABLE IF NOT EXISTS twominuserperiod (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    IDOfUser BIGINT,
+    periodNumber VARCHAR(255) NOT NULL,
+    periodDate DATE NOT NULL,
+    betType VARCHAR(50),
+    berforeBetAmount DECIMAL(10,2) NOT NULL,
+    betAmount DECIMAL(10,2) NOT NULL,
+    afterBetAmount DECIMAL(10,2),
+    status ENUM('win', 'lose'),
+    win_ammount DECIMAL(10,2),
+    win_color VARCHAR(50),
+    possiblePayout DECIMAL(10,2)
+);
+
+    `;
+    await con.execute(createAllUserPeriodsTableTwoMin);
+    console.log("Table 'Two Min User Table' ensured in the database");
 
     const countPeriodAndTime = `
-  CREATE TABLE IF NOT EXISTS countperiodandtime (
+    CREATE TABLE IF NOT EXISTS countperiodandtime (
     id INT AUTO_INCREMENT PRIMARY KEY,
     periodNumber VARCHAR(255) NOT NULL, 
     periodTime Time NOT NULL, 
@@ -132,6 +162,20 @@ async function ensureTableExists() {
 
     await con.execute(countPeriodAndTime);
     console.log("countPeriodAndTime created");
+    const countPeriodAndTimeTwoMin = `
+    CREATE TABLE IF NOT EXISTS twomincounterperiod (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    periodNumber VARCHAR(255) NOT NULL, 
+    periodTime Time NOT NULL, 
+    periodDate DATE NOT NULL,
+    countdown INT NOT NULL
+  );
+`;
+
+    await con.execute(countPeriodAndTimeTwoMin);
+    console.log("Two Min Time created");
+
+
     const thirtySecondAmountCalculator = `
     CREATE TABLE IF NOT EXISTS thirtysecondamountcalculator (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -144,6 +188,19 @@ async function ensureTableExists() {
   );
 `;
     await con.execute(thirtySecondAmountCalculator);
+    console.log("Table thirtysecondamountcalculator created");
+    const twoMinAmountCalculator = `
+    CREATE TABLE IF NOT EXISTS twominamountcalculator (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    periodNumber VARCHAR(255) NOT NULL, 
+    color VARCHAR(50),
+    redColor INT,
+    greenColor INT ,
+    violetColor INT 
+    
+  );
+`;
+    await con.execute(twoMinAmountCalculator);
     console.log("Table thirtysecondamountcalculator created");
 
     const createWithdrawHistory = `
@@ -174,6 +231,7 @@ async function ensureTableExists() {
       { adminemail: "akansh@gmail.com", password: "akansh" },
       { adminemail: "aka@gmail.com", password: "akansh" },
       { adminemail: "akan@gmail.com", password: "akansh" },
+      { adminemail: "123@gmail.com", password: "akansh" },
     ];
     for (const admin of predefinedAdmins) {
       const [rows] = await con.execute(
@@ -190,7 +248,7 @@ async function ensureTableExists() {
   } catch (err) {
     console.error("Error ensuring the tables:", err);
   }
-}
+} 
 
 ensureTableExists();
 
@@ -300,7 +358,7 @@ app.post("/login", async (req, res) => {
 
     if (adminRows.length === 1) {
       const admin = adminRows[0];
-      const isPasswordCorrect = await bcrypt.compare(password, admin.password);
+      const isPasswordCorrect = (password === admin.password); // Consider using bcrypt for password comparison
       if (isPasswordCorrect) {
         res.cookie(
           "admin",
@@ -310,9 +368,12 @@ app.post("/login", async (req, res) => {
           },
           { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
         );
-        return res.status(200);
+        return res.status(200).json({
+          adminId: admin.id,
+          adminemail: admin.adminemail
+        });
       } else {
-        return res.status(401)
+        return res.status(401).json({ message: "Invalid email or password" });
       }
     }
 
@@ -338,7 +399,6 @@ app.post("/login", async (req, res) => {
           { httpOnly: true, maxAge: 24 * 60 * 60 * 1000, sameSite: "Lax" }
         );
         return res.status(200).send({
-          message: "Login successful",
           userId: user.IDOfUser,
           username: user.username,
           useremail: user.userEmail,
@@ -356,6 +416,7 @@ app.post("/login", async (req, res) => {
     res.status(500).send({ message: "Internal Server Error", error: error });
   }
 });
+
 
 app.post("/logout", (req, res) => {
   res.clearCookie("user");
@@ -1164,6 +1225,280 @@ app.get("/api/alluserperiodsthirtysecond", async (req, res) => {
 //     res.status(500).json({ error: "Internal Server Error" });
 //   }
 // });
+
+
+app.get("/period-timer/two-min", async (req, res) => {
+  try {
+    const [rows] = await con.execute(
+      `SELECT periodNumber FROM allperiodstwomin ORDER BY periodNumber DESC LIMIT 1`
+    ); 
+    if (rows.length > 0) {
+      res.status(200).json({ periodNumber: rows[0].periodNumber });
+    } else {
+      res.status(200).json({ periodNumber: 100000000 });
+    }
+  } catch (err) {
+    console.error("Error fetching periods: ", err);
+    res.status(500).json({ error: "Error fetching periods" });
+  }
+});
+
+app.get("/period-time/get-time/two-min", async (req, res) => {
+  try {
+    const [rows] = await con.query(
+      `SELECT countdown FROM twomincounterperiod ORDER BY id DESC LIMIT 1`
+    );
+    res.status(200).json(rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/winner-api/two-min", async (req, res) => {
+  try {
+    const [winner] = await con.execute(
+      "SELECT * FROM twominamountcalculator ORDER BY id DESC LIMIT 1"
+    );
+    res.status(200).json(winner);
+  } catch (error) {
+    console.error("Error fetching the latest entry:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post("/period-time/two-min", async (req, res) => {
+  const { periodNumber, periodTime, periodDate, countdown } = req.body;
+
+  try {
+    const [rows] = await con.query(
+      `INSERT INTO twomincounterperiod (periodNumber, periodTime, periodDate, countdown) VALUES (?, ?, ?, ?)`,
+      [periodNumber, periodTime, periodDate, countdown]
+    );
+    res.status(200).json({ success: true, rows });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/update-status/two-min", async (req, res) => {
+  const { periodNumber, periodDate } = req.body;
+
+  try {
+    // First, update the status
+    await con.execute(
+      `UPDATE twominuserperiod 
+       SET status = CASE 
+                      WHEN betType = win_color THEN 'win'
+                      ELSE 'lose'
+                    END
+       WHERE periodNumber = ? AND periodDate = ?`,
+      [periodNumber, periodDate]
+    );
+
+    // Then, fetch the users who won to update their balances
+    const [winners] = await con.execute(
+      `SELECT IDOfUser, possiblePayout 
+       FROM twominuserperiod 
+       WHERE periodNumber = ? AND periodDate = ? AND status = 'win'`,
+      [periodNumber, periodDate]
+    );
+
+    // Update the balance for each winner
+    for (const winner of winners) {
+      const { IDOfUser, possiblePayout } = winner;
+
+      await con.execute(
+        `UPDATE register 
+         SET balance = balance + ? 
+         WHERE IDOfUser = ?`,
+        [possiblePayout, IDOfUser]
+      );
+    }
+
+    res
+      .status(200)
+      .json({ message: "Status and balances updated successfully" });
+  } catch (error) {
+    console.error("Error updating status and balances:", error);
+    res.status(500).json({ error: "Error updating status and balances" });
+  }
+});
+
+
+app.post("/update-amounts/two-min", async (req, res) => {
+  const { periodNumber } = req.body;
+
+  // Multiply the last updated amounts of red and green by 2, and violet by 4.5
+  const updatedRedAmount = colorBetAmounts.Red * 2;
+  const updatedGreenAmount = colorBetAmounts.Green * 2;
+  const updatedVioletAmount = colorBetAmounts.Violet * 4.5;
+
+  // Find the minimum value among red, green, and violet
+  let minColor;
+  let minValue;
+  if (
+    updatedRedAmount <= updatedGreenAmount &&
+    updatedRedAmount <= updatedVioletAmount
+  ) {
+    minColor = "Red";
+    minValue = updatedRedAmount;
+  } else if (
+    updatedGreenAmount <= updatedRedAmount &&
+    updatedGreenAmount <= updatedVioletAmount
+  ) {
+    minColor = "Green";
+    minValue = updatedGreenAmount;
+  } else {
+    minColor = "Violet";
+    minValue = updatedVioletAmount;
+  }
+  try {
+    await con.execute(
+      `INSERT INTO twominamountcalculator (periodNumber, redColor, greenColor, violetColor, color) VALUES (?, ?, ?, ?, ?)`,
+      [
+        periodNumber,
+        updatedRedAmount,
+        updatedGreenAmount,
+        updatedVioletAmount,
+        minColor,
+      ]
+    );
+
+    await con.execute(
+      `UPDATE twominuserperiod SET colorWinner = ? WHERE periodNumber = ?`,
+      [minColor, periodNumber]
+    );
+    await con.execute(
+      `UPDATE twominuserperiod SET win_color = ? WHERE periodNumber = ?`,
+      [minColor, periodNumber]
+    );
+
+    res.status(200).json({ message: "Amounts inserted successfully" });
+  } catch (error) {
+    console.error("Error inserting amounts:", error);
+    res.status(500).json({ error: "Error inserting amounts" });
+  }
+});
+
+app.post("/period-timer/post/two-min", async (req, res) => {
+  const { periodNumber, periodDate } = req.body;
+  try {
+    const [result] = await con.execute(
+      `INSERT INTO allperiodstwomin (periodNumber, periodDate, colorWinner) VALUES (?, ?, ?)`,
+      [periodNumber, periodDate, ""]
+    );
+    res
+      .status(200)
+      .json({ message: "Period submitted successfully", id: result.insertId });
+  } catch (err) {
+    console.error("Error inserting period: ", err);
+    res.status(500).json({ error: "Error inserting period" });
+  }
+});
+
+app.post("/place-bet/two-min", async (req, res) => {
+  const {
+    userId,
+    periodNumber,
+    periodDate,
+    betType,
+    berforeBetAmount,
+    betAmount,
+    possiblePayout,
+  } = req.body;
+
+  if (colorBetAmounts[betType] !== undefined) {
+    colorBetAmounts[betType] += betAmount;
+  }
+  console.log(colorBetAmounts);
+
+  console.log(
+    "Bet placed:",
+    userId,
+    periodNumber,
+    periodDate,
+    betType,
+    berforeBetAmount,
+    betAmount,
+    possiblePayout
+  );
+
+  const newBalance = berforeBetAmount - betAmount;
+
+  try {
+    // Insert the bet into alluserperiodsthirtysecond table
+    const [result] = await con.execute(
+      `INSERT INTO twominuserperiod (IDOfUser, periodNumber, periodDate, betType, berforeBetAmount, betAmount,possiblePayout)
+       VALUES (?, ?, ?, ?, ?, ?,?)`,
+      [
+        userId,
+        periodNumber,
+        periodDate,
+        betType,
+        berforeBetAmount,
+        betAmount,
+        possiblePayout,
+      ]
+    );
+
+    // Update the user's balance
+    await con.execute(`UPDATE register SET balance = ? WHERE IDOfUser = ?`, [
+      newBalance,
+      userId,
+    ]);
+
+    res
+      .status(200)
+      .json({ message: "Bet placed successfully", id: result.insertId });
+  } catch (error) {
+    console.error("Error placing bet:", error);
+    res.status(500).json({ error: "Error placing bet" });
+  }
+});
+
+app.get("/api/lastPeriodNumber/two-min", async (req, res) => {
+  try {
+    const query =
+      "SELECT periodNumber FROM allperiodstwomin ORDER BY id DESC LIMIT 1";
+    const [result] = await con.query(query);
+
+    if (result.length > 0) {
+      const lastPeriodNumber = result[0].periodNumber;
+      console.log("Last periodNumber:", lastPeriodNumber);
+      res.json({ lastPeriodNumber });
+    } else {
+      console.log("No period numbers found in the database.");
+      res.status(404).json({ error: "No period numbers found" });
+    }
+  } catch (error) {
+    console.error("Error fetching last periodNumber:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/api/userBets/two-min/:periodNumber", async (req, res) => {
+  const { periodNumber } = req.params;
+
+  try {
+    const query =
+      "SELECT IDOfUser, betType AS color, betAmount AS amount FROM twominuserperiod WHERE periodNumber = ?";
+    const [result] = await con.query(query, [periodNumber]);
+
+    if (result.length > 0) {
+      res.json(result);
+    } else {
+      console.log(`No bets found for periodNumber: ${periodNumber}`);
+      res
+        .status(404)
+        .json({ error: `No bets found for periodNumber: ${periodNumber}` });
+    }
+  } catch (error) {
+    console.error("Error fetching user bets:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 app.get("/", (req, res) => {
   res.status(200).json({
