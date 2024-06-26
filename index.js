@@ -12,12 +12,12 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 const dotenv = require("dotenv");
 dotenv.config();
- app.use(morgan('dev'))
+app.use(morgan('dev'))
 
 app.use(express.json());
 const corsOptions = {
   origin: "*",
-  methods: ["POST", "GET"],
+  methods: ["POST", "GET"], 
   credentials: true,
   optionsSuccessStatus: 200,
 };
@@ -438,12 +438,12 @@ app.post("/send-email-otp", async (req, res) => {
       text: `Your OTP code is ${otp}`,
     });
 
-    otpStore[useremail] = otp; // otpStore should be an in-memory store
-    console.log(`OTP sent successfully to ${useremail}: ${otp}`); // Log the OTP sent
+    otpStore[useremail] = otp;
+    console.log(`OTP sent successfully to ${useremail}: ${otp}`);
     res.status(200).send({ message: "OTP sent successfully" });
   } catch (error) {
-    console.error("Error sending OTP:", error);
-    res.status(500).send({ message: "Failed to send OTP" });
+    console.error("Error sending OTP:", error.message);
+    res.status(500).send({ message: "Failed to send OTP", error: error.message });
   }
 });
 
@@ -643,18 +643,12 @@ app.get("/api/payemnt/history123", async (req, res) => {
     res.status(500).send("Error fetching recharge payments.");
   }
 });
-
 app.post("/api/withdraw", async (req, res) => {
   const { userId, amount } = req.body;
 
   // Check if userId, amount are provided and if the amount is valid
-  if (!userId || !amount || amount <= 0) {
+  if (!userId || !amount || amount < 0) {
     return res.status(400).send({ message: "Invalid user ID or amount" });
-  }
-
-  // Check if the amount is greater than 300
-  if (amount < 300) {
-    return res.status(400).send({ message: "Amount must be greater than 300" });
   }
 
   try {
@@ -674,7 +668,7 @@ app.post("/api/withdraw", async (req, res) => {
     console.log(amount);
 
     // Check if the user has sufficient balance
-    if (userBalance < amount) {
+    if (userBalance < amount) {  // Changed this line
       return res.status(400).send({ message: "Insufficient balance" });
     }
 
@@ -1211,21 +1205,6 @@ app.get("/api/alluserperiodsthirtysecond", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
-// app.get("/api/alluserperiodsthreeminute", async (req, res) => {
-//   try {
-//     const { userId } = req.query;
-//     const [rows] = await con.execute(
-//       "SELECT * FROM alluserperiodsthreeminute WHERE userId = ? ORDER BY id DESC",
-//       [userId]
-//     );
-//     res.status(200).json(rows);
-//   } catch (error) {
-//     console.error("Error fetching 3-minute history:", error);
-//     res.status(500).json({ error: "Internal Server Error" });
-//   }
-// });
-
 
 app.get("/period-timer/two-min", async (req, res) => {
   try {
