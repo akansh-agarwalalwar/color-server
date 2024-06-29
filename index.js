@@ -6,18 +6,18 @@ const nodemailer = require("nodemailer");
 const otpGenerator = require("otp-generator");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
 const dotenv = require("dotenv");
 dotenv.config();
-app.use(morgan('dev'))
+app.use(morgan("dev"));
 
 app.use(express.json());
 const corsOptions = {
   origin: "*",
-  methods: ["POST", "GET"], 
+  methods: ["POST", "GET"],
   credentials: true,
   optionsSuccessStatus: 200,
 };
@@ -93,12 +93,14 @@ async function ensureTableExists() {
     id INT AUTO_INCREMENT PRIMARY KEY,
     periodNumber VARCHAR(255) NOT NULL, 
     periodDate DATE NOT NULL,
-    colorWinner VARCHAR(255) NOT NULL
+    colorWinner VARCHAR(255) NOT NULL,
+    UNIQUE (periodNumber)
     );
     `;
 
     await con.execute(createAllPeriodsTableThirtySecond);
     console.log("Table 'All Periods Thirty Second' ensured in the database");
+
     const createAllPeriodsTwoMin = `
     CREATE TABLE IF NOT EXISTS allperiodstwomin (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -175,7 +177,6 @@ async function ensureTableExists() {
     await con.execute(countPeriodAndTimeTwoMin);
     console.log("Two Min Time created");
 
-
     const thirtySecondAmountCalculator = `
     CREATE TABLE IF NOT EXISTS thirtysecondamountcalculator (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -226,6 +227,29 @@ async function ensureTableExists() {
     await con.execute(bankUserDetails);
     console.log("Table 'Bank Details' ensured in the database");
 
+    const thirtySecondManual = `
+    CREATE TABLE IF NOT EXISTS thirty_second_manual (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        periodNumber VARCHAR(255) NOT NULL,
+        color VARCHAR(255) NOT NULL
+    );
+`;
+    await con.execute(thirtySecondManual);
+    console.log("Table 'Thirty Second Manual' ensured in the database");
+
+    const randomBets = `
+    CREATE TABLE IF NOT EXISTS randomBets (
+    id INT AUTO_INCREMENT PRIMARY KEY, 
+    periodNumber INT NOT NULL, 
+    color VARCHAR(50) NOT NULL,  
+    value INT NOT NULL,
+    amount INT NOT NULL
+  );
+`;
+
+    await con.execute(randomBets);
+    console.log("Table 'randomBets' ensured in the database");
+
     // Insert predefined admin credentials
     const predefinedAdmins = [
       { adminemail: "akansh@gmail.com", password: "akansh" },
@@ -248,7 +272,7 @@ async function ensureTableExists() {
   } catch (err) {
     console.error("Error ensuring the tables:", err);
   }
-} 
+}
 
 ensureTableExists();
 
@@ -272,7 +296,7 @@ app.post("/register", async (req, res) => {
     req.body;
 
   if (!username || !mobileNumber || !useremail || !password) {
-    return res.status(400)
+    return res.status(400);
   }
 
   try {
@@ -358,7 +382,7 @@ app.post("/login", async (req, res) => {
 
     if (adminRows.length === 1) {
       const admin = adminRows[0];
-      const isPasswordCorrect = (password === admin.password); // Consider using bcrypt for password comparison
+      const isPasswordCorrect = password === admin.password; // Consider using bcrypt for password comparison
       if (isPasswordCorrect) {
         res.cookie(
           "admin",
@@ -370,7 +394,7 @@ app.post("/login", async (req, res) => {
         );
         return res.status(200).json({
           adminId: admin.id,
-          adminemail: admin.adminemail
+          adminemail: admin.adminemail,
         });
       } else {
         return res.status(401).json({ message: "Invalid email or password" });
@@ -417,7 +441,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-
 app.post("/logout", (req, res) => {
   res.clearCookie("user");
   res.status(200).send({ message: "Logout successful" });
@@ -443,7 +466,9 @@ app.post("/send-email-otp", async (req, res) => {
     res.status(200).send({ message: "OTP sent successfully" });
   } catch (error) {
     console.error("Error sending OTP:", error.message);
-    res.status(500).send({ message: "Failed to send OTP", error: error.message });
+    res
+      .status(500)
+      .send({ message: "Failed to send OTP", error: error.message });
   }
 });
 
@@ -668,7 +693,8 @@ app.post("/api/withdraw", async (req, res) => {
     console.log(amount);
 
     // Check if the user has sufficient balance
-    if (userBalance < amount) {  // Changed this line
+    if (userBalance < amount) {
+      // Changed this line
       return res.status(400).send({ message: "Insufficient balance" });
     }
 
@@ -971,17 +997,9 @@ app.get("/api/userBets/:periodNumber", async (req, res) => {
     const [result] = await con.query(query, [periodNumber]);
 
     if (result.length > 0) {
-      res.json(result);
     } else {
-      console.log(`No bets found for periodNumber: ${periodNumber}`);
-      res
-        .status(404)
-        .json({ error: `No bets found for periodNumber: ${periodNumber}` });
     }
-  } catch (error) {
-    console.error("Error fetching user bets:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+  } catch (error) {}
 });
 const colorBetAmounts = {
   Red: 0,
@@ -1210,7 +1228,7 @@ app.get("/period-timer/two-min", async (req, res) => {
   try {
     const [rows] = await con.execute(
       `SELECT periodNumber FROM allperiodstwomin ORDER BY periodNumber DESC LIMIT 1`
-    ); 
+    );
     if (rows.length > 0) {
       res.status(200).json({ periodNumber: rows[0].periodNumber });
     } else {
@@ -1305,7 +1323,6 @@ app.post("/update-status/two-min", async (req, res) => {
   }
 });
 
-
 app.post("/update-amounts/two-min", async (req, res) => {
   const { periodNumber } = req.body;
 
@@ -1346,7 +1363,7 @@ app.post("/update-amounts/two-min", async (req, res) => {
     );
 
     await con.execute(
-      `UPDATE twominuserperiod SET colorWinner = ? WHERE periodNumber = ?`,
+      `UPDATE twominuserperiod SET win_color = ? WHERE periodNumber = ?`,
       [minColor, periodNumber]
     );
     await con.execute(
@@ -1391,18 +1408,6 @@ app.post("/place-bet/two-min", async (req, res) => {
   if (colorBetAmounts[betType] !== undefined) {
     colorBetAmounts[betType] += betAmount;
   }
-  console.log(colorBetAmounts);
-
-  console.log(
-    "Bet placed:",
-    userId,
-    periodNumber,
-    periodDate,
-    betType,
-    berforeBetAmount,
-    betAmount,
-    possiblePayout
-  );
 
   const newBalance = berforeBetAmount - betAmount;
 
@@ -1421,19 +1426,14 @@ app.post("/place-bet/two-min", async (req, res) => {
         possiblePayout,
       ]
     );
-
-    // Update the user's balance
     await con.execute(`UPDATE register SET balance = ? WHERE IDOfUser = ?`, [
       newBalance,
       userId,
     ]);
 
-    res
-      .status(200)
-      .json({ message: "Bet placed successfully", id: result.insertId });
+    res.status(200).json({ id: result.insertId });
   } catch (error) {
-    console.error("Error placing bet:", error);
-    res.status(500).json({ error: "Error placing bet" });
+    res.status(500).json();
   }
 });
 
@@ -1478,7 +1478,126 @@ app.get("/api/userBets/two-min/:periodNumber", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+app.post("/api/update-period", async (req, res) => {
+  const { periodNumber, color } = req.body;
 
+  if (!periodNumber || !color) {
+    return res.status(400).send("Period number and color are required.");
+  }
+
+  try {
+    const query = `
+      INSERT INTO thirty_second_manual (periodNumber, color)
+      VALUES (?, ?)`;
+    const values = [periodNumber, color];
+
+    await con.query(query, values);
+    res.status(200).send("Period updated successfully.");
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("An error occurred while updating the period.");
+  }
+});
+
+app.post("/api/check-and-update-period", async (req, res) => {
+  const { periodNumber, color } = req.body;
+
+  if (!periodNumber || !color) {
+    return res.status(400).send("Period number and color are required.");
+  }
+
+  try {
+    // Update thirty_second_manual table
+    await con.query(
+      `
+      INSERT INTO thirty_second_manual (periodNumber, color)
+      VALUES (?, ?)`,
+      [periodNumber, color]
+    );
+
+    // Update allperiodsthirtysecond table
+    await con.query(
+      `
+      UPDATE allperiodsthirtysecond 
+      SET colorWinner = ?
+      WHERE periodNumber = ?`,
+      [color, periodNumber]
+    );
+
+    // Update alluserperiodsthirtysecond table and check user bets
+    const [userBets] = await con.query(
+      `
+      SELECT * FROM alluserperiodsthirtysecond
+      WHERE periodNumber = ?`,
+      [periodNumber]
+    );
+
+    for (const bet of userBets) {
+      if (bet.betType === color) {
+        const winAmount = bet.betAmount * (color === "Violet" ? 4.5 : 2); // Adjust multiplier accordingly
+        await con.query(
+          `
+          UPDATE alluserperiodsthirtysecond
+          SET status = 'win', win_amount = ?, afterBetAmount = berforeBetAmount + ?
+          WHERE id = ?`,
+          [winAmount, winAmount, bet.id]
+        );
+        await con.query(
+          `
+          UPDATE register
+          SET balance = balance + ?
+          WHERE id = ?`,
+          [winAmount, bet.IDOfUser]
+        );
+      } else {
+        await con.query(
+          `
+          UPDATE alluserperiodsthirtysecond
+          SET status = 'lose', afterBetAmount = berforeBetAmount - betAmount
+          WHERE id = ?`,
+          [bet.id]
+        );
+      }
+    }
+    res.status(200).send("Period and user bets updated successfully.");
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .send("An error occurred while updating the period and user bets.");
+  }
+});
+
+app.get("/api/thirty-second-history/:userId", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const [userBets] = await con.query(
+      `
+      SELECT betAmount,periodNumber, betType, status FROM alluserperiodsthirtysecond
+      WHERE IDOfUser = ?`,
+      [userId]
+    );
+    res.status(200).send(userBets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("An error occurred while getting the user bets.");
+  }
+});
+app.get("/api/two-min-history/:userId", async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const [userBets] = await con.query(
+      `
+      SELECT betAmount,periodNumber, betType, status FROM twominuserperiod
+      WHERE IDOfUser = ?`,
+      [userId]
+    );
+    res.status(200).send(userBets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("An error occurred while getting the user bets.");
+  }
+});
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Welcome to the API",
