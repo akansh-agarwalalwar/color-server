@@ -1521,10 +1521,12 @@ app.get("/api/userBets/two-min/:periodNumber", async (req, res) => {
   }
 });
 
+const path = require("path");
 app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Welcome to the API",
-  });
+  // res.status(200).json({
+  //   message: "Welcome to the API",
+  // });
+  res.sendFile(path.join(__dirname, "public", "index.html"))
 });
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
