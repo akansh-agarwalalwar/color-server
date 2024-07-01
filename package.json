@@ -15,7 +15,9 @@
     "otp-generator": "^4.0.1",
     "router": "^1.3.8",
     "sequelize": "^6.37.3",
+    "socket.io": "^4.7.5",
     "twilio": "^5.1.1",
+    "ws": "^8.17.1",
     "xlsx": "^0.18.5"
   },
   "name": "mainserver",

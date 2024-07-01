@@ -12,14 +12,65 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 const dotenv = require("dotenv");
 dotenv.config();
-app.use(morgan("dev"));
+// app.use(morgan("dev"));
+const http = require('http');
+const socketIo = require('socket.io');
+const WebSocket = require('ws');
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+// const io = socketIo(server);
+let timer = 30;
 
+// Broadcast function to send timer to all clients
+function broadcastTimer() {
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ timer }));
+    }
+  });
+}
+
+// Decrement the timer every second
+setInterval(() => {
+  timer--;
+  if (timer <= 0) {
+    timer = 30; // Reset the timer
+  }
+  broadcastTimer();
+}, 1000);
+
+// WebSocket connection setup
+wss.on('connection', ws => {
+  console.log('Client connected');
+  ws.send(JSON.stringify({ timer }));
+
+  ws.on('close', () => {
+    console.log('Client disconnected');
+  });
+});
+// const startTimer = () => {
+//   setInterval(() => {
+//     timer--;
+//     if (timer < 0) {
+//       timer = 30;
+//     }
+//     io.emit('timer', timer);
+//   }, 1000);
+// };
+
+// io.on('connection', (socket) => {
+//   console.log('New client connected');
+//   socket.emit('timer', timer);
+//   socket.on('disconnect', () => {
+//     console.log('Client disconnected');
+//   });
+// });
+
+// startTimer();
 app.use(express.json());
 const corsOptions = {
   origin: "*",
   methods: ["POST", "GET"],
-  credentials: true,
-  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
@@ -631,7 +682,7 @@ app.get("/api/payments/history", async (req, res) => {
 
   try {
     const [paymentHistory] = await con.execute(
-      'SELECT * FROM rechargeHistory WHERE status != "pending" AND userId = ?',
+      'SELECT * FROM rechargehistory WHERE status != "pending" AND userId = ?',
       [userId]
     );
     res.status(200).json(paymentHistory);
@@ -1599,9 +1650,10 @@ app.get("/api/two-min-history/:userId", async (req, res) => {
   }
 });
 app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Welcome to the API",
-  });
+  // res.status(200).json({
+  //   message: "Welcome to the API",
+  // });
+  res.sendFile("index.html");
 });
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
